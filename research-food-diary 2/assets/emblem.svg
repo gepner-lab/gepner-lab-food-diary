@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <g fill="none" stroke="#37B9A7" stroke-linecap="round">
-    <path d="M28 256 C140 132 372 132 484 256 C372 380 140 380 28 256 Z" stroke-width="14"/>
-    <g stroke-width="9"><path d="M70 256 Q256 126 442 256" /><path d="M70 256 Q256 168 442 256" /><path d="M70 256 Q256 210 442 256" /><path d="M70 256 Q256 256 442 256" /><path d="M70 256 Q256 302 442 256" /><path d="M70 256 Q256 344 442 256" /><path d="M70 256 Q256 386 442 256" /></g>
-  </g>
-</svg>
