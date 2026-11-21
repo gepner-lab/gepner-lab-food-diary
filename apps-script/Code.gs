@@ -28,8 +28,11 @@ const ING_HEADERS = [
   'meal_id', 'participant_code', 'date', 'time', 'item_no', 'source', 'tzameret_code', 'smlmitzrach',
   'food_name', 'quantity', 'unit', 'unit_grams', 'grams', 'leftover_pct',
   'kcal', 'protein_g', 'carb_g', 'fat_g', 'calcium_mg', 'sodium_mg',
-  'fiber_g', 'sugar_g', 'satfat_g', 'iron_mg', 'cholesterol_mg', 'deleted'
+  'fiber_g', 'sugar_g', 'satfat_g', 'iron_mg', 'cholesterol_mg', 'deleted',
+  // 2.4.0: packaged products scanned by barcode (added at the end so older rows stay aligned)
+  'barcode', 'barcode_db_values'
 ];
+const ING_DELETED = ING_HEADERS.indexOf('deleted');
 const NUT_KEYS = ['cal', 'pro', 'carb', 'fat', 'calc', 'sod', 'fiber', 'sugar', 'satfat', 'iron', 'chol'];
 const PARTICIPANT_HEADERS = ['code', 'group', 'active', 'notes', 'registered_at', 'last_sync_at', 'folder_url'];
 const VALID_GROUPS = ['CR', 'TRE', 'RT'];
@@ -193,6 +196,7 @@ function upsertMeal_(participant, req) {
 
   // Ingredients: replace this meal's rows.
   const ingSheet = files.ss.getSheetByName('Ingredients');
+  ensureHeaders_(ingSheet, ING_HEADERS);
   deleteRowsById_(ingSheet, meal.id);
   const ingRows = (meal.ingredients || []).map(function (ing, i) {
     const net = ing.net || {};
@@ -200,7 +204,11 @@ function upsertMeal_(participant, req) {
       meal.id, participant.code, "'" + meal.date, "'" + meal.time, i + 1, ing.source,
       ing.tzameretCode || '', ing.smlmitzrach || '', ing.name, ing.quantity, ing.unitName,
       numOrBlank_(ing.unitGrams), numOrBlank_(ing.grams), meal.leftoverPct || 0
-    ].concat(NUT_KEYS.map(function (k) { return numOrBlank_(net[k]); })).concat([meal.deleted === true]);
+    ].concat(NUT_KEYS.map(function (k) { return numOrBlank_(net[k]); })).concat([
+      meal.deleted === true,
+      ing.barcode ? "'" + ing.barcode : '',   // as text, so leading zeros survive
+      ing.offPer100 ? JSON.stringify({ source: 'openfoodfacts', per100: ing.offPer100, last_modified: ing.offLastModified || null }) : ''
+    ]);
   });
   if (ingRows.length) {
     ingSheet.getRange(ingSheet.getLastRow() + 1, 1, ingRows.length, ING_HEADERS.length).setValues(ingRows);
@@ -233,13 +241,13 @@ function buildCombinedDataset() {
     }
     if (g.getLastRow() > 1) {
       g.getRange(2, 1, g.getLastRow() - 1, ING_HEADERS.length).getValues().forEach(function (row) {
-        if (row[ING_HEADERS.length - 1] !== true) allIngs.push(row.slice(0, ING_HEADERS.length - 1));
+        if (row[ING_DELETED] !== true) allIngs.push(withoutCol_(row, ING_DELETED));
       });
     }
   });
 
   writeTable_(control, 'All_Meals', MEAL_HEADERS.slice(0, -1), allMeals);
-  writeTable_(control, 'All_Ingredients', ING_HEADERS.slice(0, -1), allIngs);
+  writeTable_(control, 'All_Ingredients', withoutCol_(ING_HEADERS, ING_DELETED), allIngs);
 
   // Daily summary per participant/date, incl. the TRE 8-hour window check.
   const H = function (name) { return MEAL_HEADERS.indexOf(name); };
@@ -372,6 +380,14 @@ function writeTable_(ss, name, headers, rows) {
   if (rows.length) sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
   sh.setFrozenRows(1);
 }
+
+// Older participant sheets get the newer column names added to their header row.
+function ensureHeaders_(sheet, headers) {
+  const range = sheet.getRange(1, 1, 1, headers.length);
+  if (range.getValues()[0].join('|') !== headers.join('|')) range.setValues([headers]).setFontWeight('bold');
+}
+
+function withoutCol_(row, idx) { return row.slice(0, idx).concat(row.slice(idx + 1)); }
 
 function numOrBlank_(v) { return (v === null || v === undefined || v === '') ? '' : Number(v); }
 

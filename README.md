@@ -9,6 +9,9 @@ meals and photos are uploaded to the lab's Google Drive, into a separate folder 
 - **Food composition:** *Tzameret* (צמרת), the Israeli Ministry of Health national nutrient database
   (4,624 foods, 74 nutrients per 100 g, official portion weights), from
   [data.gov.il](https://data.gov.il/dataset/nutrition-database). Last data update: 2022-07-11.
+- **Packaged products not in Tzameret:** scan the barcode → [Open Food Facts](https://world.openfoodfacts.org)
+  (open database, ODbL licence). Its values are only used after the participant confirms they match the
+  label in their hand; otherwise they correct them in the label form. See *Barcode scanning* below.
 
 ## What the app records (per meal)
 
@@ -16,7 +19,7 @@ meals and photos are uploaded to the lab's Google Drive, into a separate folder 
 |---|---|
 | Date, weekday, eating time, meal type | weekday is derived from the date |
 | Free-text description | the participant's own words, for researcher review |
-| Ingredients | each with Tzameret code (`Code`, `smlmitzrach`) or "package label", quantity, portion unit, unit grams, total grams, per-100 g values used |
+| Ingredients | each with Tzameret code (`Code`, `smlmitzrach`) or barcode / package label, quantity, portion unit, unit grams, total grams, per-100 g values used |
 | Plate waste | % left on the plate; net nutrients = gross × (100 − %) |
 | Nutrients | kcal, protein, carbs, fat, calcium, sodium, fiber, sugars, sat. fat, iron, cholesterol |
 | Missing values | a nutrient missing in Tzameret stays **empty (not 0)** and is listed in `missing_nutrients` |
@@ -24,8 +27,29 @@ meals and photos are uploaded to the lab's Google Drive, into a separate folder 
 | Audit | `entered_at`, `updated_at`, `received_at`, deletions are soft (row kept, `deleted = TRUE`) |
 
 The TRE 8-hour window is measured from the day's first meal; meals after first + 8 h are flagged.
-RT participants never see nutrition values (researcher view needs `RESEARCHER_PIN`).
+RT participants never see nutrition values. A researcher can unlock them on an RT phone only if
+`RESEARCHER_PIN` is set in `config.js`; with no PIN the option does not exist on the phone at all.
 Participants pick their own group at first sign-in and confirm code + group before the diary opens.
+
+## Barcode scanning (2.4.0)
+
+When a search finds nothing in Tzameret, the app offers **Scan barcode** (also in the *From package label* tab,
+or type the barcode number into the search box). The camera reads EAN-13/EAN-8/UPC codes: Android Chrome uses
+its built-in reader; iPhone Safari uses the bundled open-source ZXing library (`vendor/`, Apache-2.0).
+If the camera is refused or missing, the participant types the 13 digits (the check digit is verified).
+
+| What happens | Ingredient `source` |
+|---|---|
+| Found, participant answers *“values match the label”* | `openfoodfacts` |
+| Found, participant answers *“no”* and corrects, or values were missing / implausible | `openfoodfacts_corrected` |
+| Not in Open Food Facts, offline, or service down → typed from the label (barcode kept) | `label` |
+| Typed from the label without scanning | `label` (no barcode) |
+
+Every barcode item stores the `barcode` and the values exactly as fetched (`barcode_db_values`, JSON with the
+product's last-modified date), so values used can be compared with values fetched. Values that are obviously
+wrong (energy far from 4/4/9 × macros, > 950 kcal or > 105 g macros per 100 g) are never offered for one-tap
+confirmation; the label form opens instead. Scanned products are saved to the participant's *My products*, so
+scanning the same barcode again is instant and works offline.
 
 ## Files
 
@@ -36,6 +60,7 @@ Participants pick their own group at first sign-in and confirm code + group befo
 | `foods.json` | Tzameret, compacted for the app (built by `tools/build_foods.py`) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | home-screen install + offline support |
 | `apps-script/Code.gs` | the Google backend (paste into Apps Script) |
+| `vendor/` | ZXing barcode reader (iPhone) + its licence |
 | `data-source/` | raw Tzameret tables as downloaded (provenance) |
 | `tools/` | build scripts (food database, logo, icons) |
 
@@ -79,6 +104,16 @@ Send the link. On the phone:
 Install **before** entering the participant code: on iPhone the home-screen app has its own storage,
 separate from Safari. If a phone is replaced, entering the same code restores previously uploaded meals.
 
+## Tests
+
+The automated tests live in `tests/` on the development machine (not part of the website):
+```bash
+node --test tests/*.test.js
+```
+`app.test.js` runs the real `app.js` (search, nutrient maths, portions, TRE window, storage, sign-in,
+upload queue); `barcode.test.js` covers scanning, Open Food Facts parsing and every fallback;
+`gas.test.js` runs `apps-script/Code.gs` against an in-memory fake of Sheets/Drive.
+
 ## Rebuilding the food database
 
 ```bash
@@ -88,7 +123,16 @@ Reads `data-source/*.json` (Tzameret tables) and writes `foods.json`. Bump `CACH
 
 ## Known limits
 
-- Tzameret's branded products reflect 2022; for products not in it, participants enter values from the package label.
+- The TRE window is counted per calendar day: a snack at 00:30 belongs to the next day's window.
+- Meals cannot be edited, only deleted and added again (deletions are kept in Drive, flagged `deleted`).
+- Photos stay in Drive; a participant who signs in on a new phone gets their meals back without photos.
+- If the server ever refuses a meal (e.g. a code mismatch), the phone marks it "not uploaded" and keeps
+  uploading the rest; the participant can still export it to Excel from the menu.
+
+- Tzameret's branded products reflect 2022; newer packaged products come from a barcode scan (confirmed against
+  the label) or are typed from the label.
+- Open Food Facts is crowd-sourced. Its coverage of Israeli products is partial (~7,700 with nutrition values in
+  late 2026), and values are only as good as the participant's check against the label.
 - Portion sizes are self-reported — the main source of error in any food diary. The app requires an explicit portion
   choice for every food (no default) and warns above 500 g, and the photo lets researchers check.
 - The study key in `config.js` is visible to anyone who opens the site; it blocks random traffic, not a determined

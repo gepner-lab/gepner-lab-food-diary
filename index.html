@@ -190,6 +190,20 @@
                 </div>
 
                 <div id="src-label" class="panel label-form hidden">
+                    <div id="lbl-barcode-wrap" class="barcode-box hidden">
+                        <div class="note info" id="lbl-barcode-note" style="margin:0;"></div>
+                        <div>
+                            <label class="field-label" for="lbl-barcode">ברקוד</label>
+                            <div class="barcode-row">
+                                <input id="lbl-barcode" class="input locked" readonly>
+                                <button type="button" class="btn sm" onclick="clearLabelBarcode()">הסרה</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn block scan-inline" id="lbl-scan-btn" onclick="openScanner()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>
+                        סריקת ברקוד — ממלא את הערכים בשבילך
+                    </button>
                     <div class="kicker">הזנת ערכים מתווית האריזה</div>
                     <div><label class="field-label" for="lbl-name">שם המוצר</label><input id="lbl-name" class="input" placeholder="לדוגמה: חטיף חלבון שוקולד"></div>
                     <div><label class="field-label" for="lbl-basis">הערכים בתווית הם</label>
@@ -279,6 +293,23 @@
         </div>
         <div class="sheet-body" id="info-body"></div>
         <div class="sheet-foot hidden" id="info-foot"></div>
+    </div>
+</div>
+
+<!-- =================================================================== BARCODE SCANNER (camera) -->
+<div id="scanner-root" class="scanner hidden" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+    <div class="scan-top">
+        <span id="scan-title">סריקת ברקוד</span>
+        <button type="button" class="scan-x" aria-label="סגירה" onclick="closeScanner()">✕</button>
+    </div>
+    <div class="scan-view">
+        <video id="scan-video" playsinline muted autoplay></video>
+        <div class="scan-frame" aria-hidden="true"></div>
+        <div class="scan-laser" aria-hidden="true"></div>
+        <div class="scan-hint" id="scan-hint" aria-live="polite">כוונו את הברקוד לתוך המסגרת</div>
+    </div>
+    <div class="scan-foot">
+        <button type="button" onclick="scannerManualEntry()">⌨︎ הקלדת מספר הברקוד</button>
     </div>
 </div>
 

@@ -3,7 +3,7 @@
 // intercepted — the app queues them itself and retries when back online.
 //
 // Bump CACHE_VERSION on every deploy so phones pick up the new files.
-const CACHE_VERSION = 'fd-v2.2.0';
+const CACHE_VERSION = 'fd-v2.4.0';
 const SHELL = [
   './',
   'index.html',
@@ -16,7 +16,8 @@ const SHELL = [
   'assets/emblem.svg',
   'icons/icon-192.png',
   'icons/apple-touch-icon.png',
-  'icons/favicon-32.png'
+  'icons/favicon-32.png',
+  'vendor/zxing-library-0.21.3.min.js'   // barcode reader, so scanning saved products works offline
 ];
 const RUNTIME_HOSTS = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
