@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>יומן אכילה · מעבדת גפנר</title>
+    <meta name="description" content="יומן אכילה מחקרי — מעבדת גפנר, מדעי הבריאות והספורט">
+    <meta name="theme-color" content="#E8E8E8">
+    <meta name="robots" content="noindex">
+
+    <!-- Installable web app (Android: manifest; iPhone: apple-* tags) -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="יומן אכילה">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Fonts load without blocking the first paint (slow networks show the system font first) -->
+    <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700&family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+</head>
+<body>
+<div id="toast-container" aria-live="polite"></div>
+
+<!-- =================================================================== LOGIN -->
+<div id="auth-view" class="app-col">
+    <div class="auth-hero">
+        <span class="blob" style="width:220px;height:220px;top:-90px;left:-70px;"></span>
+        <span class="blob" style="width:140px;height:140px;bottom:-60px;right:-30px;"></span>
+        <img class="wordmark" src="assets/wordmark-transparent.png" alt="GepnerLab — Health and Exercise Science">
+        <h1>יומן אכילה מחקרי</h1>
+    </div>
+
+    <div class="auth-card panel">
+        <div id="install-hint-login" class="note info hidden"></div>
+        <div id="auth-cloud-note" class="note hidden">הזינו את קוד הנחקר ובחרו את קבוצת המחקר שקיבלתם מצוות המחקר. הארוחות שתזינו יישמרו במכשיר ויועלו אוטומטית למערכת המחקר.</div>
+        <div id="auth-demo-note" class="note hidden">מצב הדגמה: הנתונים נשמרים במכשיר בלבד ואינם מועלים לענן.</div>
+        <div id="auth-error" class="error-box hidden" role="alert"></div>
+
+        <form id="auth-form" novalidate>
+            <label for="participant-code-input" class="field-label">קוד נחקר</label>
+            <input type="text" id="participant-code-input" class="input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="K7P2Q9" required>
+
+            <div id="group-picker" style="margin-top:16px;">
+                <span class="field-label">קבוצת מחקר</span>
+                <div class="group-grid">
+                    <label><input type="radio" name="study-group" value="CR"><span>CR</span></label>
+                    <label><input type="radio" name="study-group" value="TRE"><span>TRE</span></label>
+                    <label><input type="radio" name="study-group" value="RT"><span>RT</span></label>
+                </div>
+            </div>
+
+            <button type="submit" id="enter-diary-btn" class="btn primary block lg" style="margin-top:20px;"><span>כניסה ליומן</span></button>
+        </form>
+    </div>
+    <div class="auth-foot">מעבדת גפנר · מדעי הבריאות והספורט</div>
+</div>
+
+<!-- =================================================================== TODAY -->
+<div id="diary-view" class="app-col hidden">
+    <header class="brandbar">
+        <span class="blob" style="width:160px;height:160px;top:-80px;left:40px;"></span>
+        <div class="brandbar-row">
+            <img class="wordmark" src="assets/wordmark-transparent.png" alt="GepnerLab">
+            <div class="brand-actions">
+                <button type="button" id="sync-chip" class="chip" onclick="syncNow(true)"></button>
+                <button type="button" class="icon-btn" aria-label="תפריט" onclick="toggleMenu()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div id="menu" class="menu hidden" role="menu">
+        <button type="button" onclick="syncNow(true); toggleMenu(false)">⟳ סנכרון עכשיו</button>
+        <button type="button" onclick="exportToExcel(); toggleMenu(false)">⬇ ייצוא לאקסל</button>
+        <button type="button" id="menu-install" class="hidden" onclick="showInstallHelp(); toggleMenu(false)">📲 התקנה למסך הבית</button>
+        <hr>
+        <button type="button" id="menu-researcher" class="hidden" onclick="toggleRtResearcherSummary(); toggleMenu(false)">🔑 תצוגת חוקר</button>
+        <button type="button" onclick="showAbout(); toggleMenu(false)">ⓘ מקור הנתונים</button>
+    </div>
+
+    <section class="day-head">
+        <div class="day-title" id="day-title"></div>
+        <div class="day-sub" id="day-sub"></div>
+        <div class="ident-row">
+            <span class="chip muted" id="identity-chip"></span>
+        </div>
+        <div class="week">
+            <button type="button" class="week-arrow" id="week-prev" aria-label="השבוע הקודם" onclick="shiftWeek(-1)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <div class="week-days" id="week-strip"></div>
+            <button type="button" class="week-arrow" id="week-next" aria-label="השבוע הבא" onclick="shiftWeek(1)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>
+            </button>
+        </div>
+    </section>
+
+    <div id="stats-row" class="stats hidden"></div>
+    <div id="tre-banner" class="tre-banner hidden"></div>
+    <div id="install-hint-main" class="install-hint panel hidden" style="margin-top:12px;"></div>
+
+    <div class="section-title"><h2>ארוחות</h2><span class="chip muted sm" id="meal-count"></span></div>
+    <div id="timeline" class="timeline"></div>
+    <div id="empty-state" class="empty hidden">
+        <img src="assets/emblem.svg" alt="">
+        <strong>עוד לא נרשמו ארוחות ביום זה</strong>
+        לחצו על "הוספת ארוחה" אחרי כל ארוחה, חטיף או שתייה.
+    </div>
+
+    <section id="full-summary" class="summary panel hidden">
+        <div class="kicker">סיכום תזונתי יומי</div>
+        <div class="summary-grid" id="summary-grid"></div>
+        <div id="summary-note" class="missing-note hidden" style="margin-top:8px;"></div>
+    </section>
+    <div id="rt-blinded" class="blinded panel hidden">הערכים התזונתיים נשמרים במערכת המחקר.</div>
+
+    <footer class="page-foot" id="source-footer"></footer>
+
+    <div class="bottom-bar">
+        <button type="button" class="btn primary block lg" onclick="openMealSheet()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            הוספת ארוחה
+        </button>
+    </div>
+</div>
+
+<!-- =================================================================== ADD-MEAL SHEET -->
+<div id="meal-sheet-root" class="hidden">
+    <div class="scrim" onclick="closeMealSheet()"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <div class="sheet-head">
+            <div class="grabber"></div>
+            <div class="sheet-title-row">
+                <span class="sheet-title" id="sheet-title">ארוחה חדשה</span>
+                <button type="button" class="close-x" aria-label="סגירה" onclick="closeMealSheet()">✕</button>
+            </div>
+            <div class="steps" id="steps">
+                <div class="step" data-step="1"><i></i>1 · מתי ומה</div>
+                <div class="step" data-step="2"><i></i>2 · רכיבים</div>
+                <div class="step" data-step="3"><i></i>3 · כמה ותמונה</div>
+            </div>
+        </div>
+
+        <div class="sheet-body" id="sheet-body">
+            <!-- STEP 1 -->
+            <div id="step-1" class="step-panel" style="display:flex; flex-direction:column; gap:18px;">
+                <div>
+                    <span class="field-label">סוג ארוחה</span>
+                    <div class="type-chips" id="meal-type-chips">
+                        <button type="button" data-type="בוקר">בוקר</button>
+                        <button type="button" data-type="צהריים">צהריים</button>
+                        <button type="button" data-type="ערב">ערב</button>
+                        <button type="button" data-type="ביניים">ביניים</button>
+                    </div>
+                </div>
+                <div>
+                    <label for="meal-time-input" class="field-label">שעת אכילה <span class="muted small" id="meal-date-label"></span></label>
+                    <input type="time" id="meal-time-input" class="input big-time" required>
+                </div>
+                <div>
+                    <label for="meal-desc-input" class="field-label">מה אכלת? (במילים שלך)</label>
+                    <textarea id="meal-desc-input" class="textarea" rows="3" placeholder="לדוגמה: 2 פרוסות לחם מלא עם קוטג׳ 5%, מלפפון וכוס קפה עם חלב"></textarea>
+                    <div class="tiny muted" style="margin-top:6px;">התיאור עוזר לצוות המחקר לבדוק את הנתונים. בשלב הבא תבחר/י כל רכיב מהמאגר.</div>
+                </div>
+            </div>
+
+            <!-- STEP 2 -->
+            <div id="step-2" class="step-panel hidden" style="display:flex; flex-direction:column; gap:14px;">
+                <div id="selected-ings" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+                <div class="seg" id="source-seg">
+                    <button type="button" data-src="tz" class="on">חיפוש במאגר</button>
+                    <button type="button" data-src="label">מתווית אריזה</button>
+                </div>
+
+                <div id="src-tz" style="display:flex; flex-direction:column; gap:10px;">
+                    <div class="search-wrap">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" id="food-search" class="input" placeholder="טוען את מאגר המזון..." autocomplete="off" enterkeyhint="search" disabled>
+                    </div>
+                    <div id="search-results"></div>
+                    <div class="tiny muted" id="search-hint">חפש/י כל רכיב בנפרד (למשל: "קוטג׳ 5", "לחם מלא", "מלפפון").</div>
+                </div>
+
+                <div id="src-label" class="panel label-form hidden">
+                    <div class="kicker">הזנת ערכים מתווית האריזה</div>
+                    <div><label class="field-label" for="lbl-name">שם המוצר</label><input id="lbl-name" class="input" placeholder="לדוגמה: חטיף חלבון שוקולד"></div>
+                    <div><label class="field-label" for="lbl-basis">הערכים בתווית הם</label>
+                        <select id="lbl-basis" class="select" onchange="updateLabelBasisLabels()">
+                            <option value="100g">ל-100 גרם / 100 מ"ל</option>
+                            <option value="unit">ליחידה / למנה</option>
+                        </select></div>
+                    <div class="grid-2">
+                        <div><label class="field-label" for="lbl-cal">קלוריות</label><input id="lbl-cal" class="input" type="number" inputmode="decimal" min="0" step="any"></div>
+                        <div><label class="field-label" for="lbl-pro">חלבון (ג׳)</label><input id="lbl-pro" class="input" type="number" inputmode="decimal" min="0" step="any"></div>
+                        <div><label class="field-label" for="lbl-carb">פחמימות (ג׳)</label><input id="lbl-carb" class="input" type="number" inputmode="decimal" min="0" step="any"></div>
+                        <div><label class="field-label" for="lbl-fat">שומן (ג׳)</label><input id="lbl-fat" class="input" type="number" inputmode="decimal" min="0" step="any"></div>
+                        <div><label class="field-label" for="lbl-calc">סידן (מ"ג)</label><input id="lbl-calc" class="input" type="number" inputmode="decimal" min="0" step="any" placeholder="אם מופיע"></div>
+                        <div><label class="field-label" for="lbl-sod">נתרן (מ"ג)</label><input id="lbl-sod" class="input" type="number" inputmode="decimal" min="0" step="any" placeholder="אם מופיע"></div>
+                    </div>
+                    <div><label class="field-label" id="lbl-eaten-label" for="lbl-eaten-amount">כמה נאכל בפועל (גרם / מ"ל)</label><input id="lbl-eaten-amount" class="input" type="number" inputmode="decimal" min="0.1" step="any" value="100"></div>
+                    <label class="check-row"><input type="checkbox" id="lbl-save-personal" checked> שמירה ברשימת המוצרים שלי</label>
+                    <button type="button" class="btn primary block" onclick="handleAddCustomLabelProduct()">הוספה לארוחה</button>
+                    <div id="saved-custom-wrapper" class="hidden">
+                        <div class="kicker" style="margin-bottom:6px;">המוצרים השמורים שלי</div>
+                        <div id="saved-custom-list" class="portion-chips"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3 -->
+            <div id="step-3" class="step-panel hidden" style="display:flex; flex-direction:column; gap:18px;">
+                <div>
+                    <span class="field-label">האם סיימת את כל המנה?</span>
+                    <div class="yesno">
+                        <button type="button" id="btn-finished-yes" onclick="setFinishedState(true)">כן, סיימתי הכול</button>
+                        <button type="button" id="btn-finished-no" onclick="setFinishedState(false)">לא, נשאר בצלחת</button>
+                    </div>
+                    <div id="leftovers-section" class="hidden" style="margin-top:12px;">
+                        <span class="field-label" id="consumed-pct-label"></span>
+                        <div class="pct-row">
+                            <button type="button" class="chip" onclick="setLeftoverPct(10)">10%</button>
+                            <button type="button" class="chip" onclick="setLeftoverPct(25)">25%</button>
+                            <button type="button" class="chip" onclick="setLeftoverPct(50)">50%</button>
+                            <button type="button" class="chip" onclick="setLeftoverPct(75)">75%</button>
+                        </div>
+                        <input type="range" id="leftover-slider" class="range" min="1" max="95" value="25" aria-label="אחוז שנשאר בצלחת">
+                    </div>
+                </div>
+
+                <div>
+                    <span class="field-label">תמונת הארוחה <span class="muted small">(מומלץ)</span></span>
+                    <div class="photo-pick">
+                        <label class="photo-btn" for="meal-photo-input">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                            <span id="photo-upload-text">צילום או בחירת תמונה</span>
+                        </label>
+                        <input type="file" id="meal-photo-input" accept="image/*" class="hidden">
+                        <div id="photo-preview-box" class="photo-prev hidden">
+                            <img id="photo-preview-img" src="" alt="תצוגה מקדימה">
+                            <button type="button" aria-label="הסרת תמונה" onclick="clearSelectedPhoto()">✕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="meal-totals-wrap">
+                    <span class="field-label">סיכום הארוחה</span>
+                    <div class="totals" id="meal-totals"></div>
+                    <div id="meal-missing-note" class="missing-note hidden" style="margin-top:8px;"></div>
+                </div>
+                <div id="meal-review" class="panel" style="padding:12px;"></div>
+            </div>
+        </div>
+
+        <div class="sheet-foot">
+            <button type="button" class="btn" id="sheet-back" style="flex:1;" onclick="sheetBack()">חזרה</button>
+            <button type="button" class="btn primary" id="sheet-next" style="flex:2;" onclick="sheetNext()">המשך</button>
+        </div>
+    </div>
+</div>
+
+<!-- =================================================================== GENERIC SHEET (meal details / about / install) -->
+<div id="info-sheet-root" class="hidden">
+    <div class="scrim" onclick="closeInfoSheet()"></div>
+    <div class="sheet short" role="dialog" aria-modal="true">
+        <div class="sheet-head">
+            <div class="grabber"></div>
+            <div class="sheet-title-row">
+                <span class="sheet-title" id="info-title"></span>
+                <button type="button" class="close-x" aria-label="סגירה" onclick="closeInfoSheet()">✕</button>
+            </div>
+        </div>
+        <div class="sheet-body" id="info-body"></div>
+        <div class="sheet-foot hidden" id="info-foot"></div>
+    </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
